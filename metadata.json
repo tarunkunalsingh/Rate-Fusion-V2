@@ -1,0 +1,5 @@
+{
+  "name": "Remix: RateFusion",
+  "description": "A comprehensive logistics portal for importing CSV rate data, performing selective master data validation, generating OTM-compliant XML files, and transmitting them to secured web servers via customized profiles.",
+  "requestFramePermissions": []
+}
