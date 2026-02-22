@@ -10,7 +10,7 @@ import {
   IDPConfig, 
   TransmissionLogEntry,
   Tenant
-} from '../types';
+} from '../types.js';
 import { 
   RAW_COUNTRIES, 
   RAW_UNLOCODES, 
@@ -19,7 +19,7 @@ import {
   ENTERPRISE_HTML_TEMPLATE_CREATED, 
   ENTERPRISE_HTML_TEMPLATE_RESET, 
   ENTERPRISE_HTML_TEMPLATE_BACKUP 
-} from '../constants';
+} from '../constants.js';
 
 import emailHandler from './email.js';
 import proxyHandler from './proxy.js';
