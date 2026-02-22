@@ -1,15 +1,19 @@
 
 import React, { useState } from 'react';
-import { User, SMTPConfig } from '../types';
-import { Shield, UserPlus, Trash2, Edit2, Mail, Fingerprint, ShieldAlert, Check, X, Globe, Key, RefreshCw, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { User, SMTPConfig, Tenant } from '../types';
+import { Shield, UserPlus, Trash2, Edit2, Mail, Fingerprint, ShieldAlert, Check, X, Globe, Key, RefreshCw, Eye, EyeOff, Loader2, Building2 } from 'lucide-react';
 
 interface UserManagementProps {
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>; // Updated type for functional updates
   smtpConfig: SMTPConfig;
+  tenants: Tenant[];
+  currentUser: User;
+  onTenantChange: (tenantId: string) => void;
+  selectedTenantId: string;
 }
 
-const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpConfig }) => {
+const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpConfig, tenants, currentUser, onTenantChange, selectedTenantId }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [generatedPassword, setGeneratedPassword] = useState('');
@@ -25,9 +29,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpCo
     password: ''
   });
 
+  const filteredUsers = currentUser.role === 'DBA_ADMIN' 
+    ? (!selectedTenantId || selectedTenantId === 'all' ? users : users.filter(u => u.tenantId === selectedTenantId))
+    : users;
+
   const handleOpenAdd = () => {
     setEditingUser(null);
-    setFormData({ name: '', email: '', authType: 'BASIC', role: 'USER', password: '' });
+    setFormData({ 
+      name: '', 
+      email: '', 
+      authType: 'BASIC', 
+      role: 'USER', 
+      password: '',
+      tenantId: currentUser.role === 'DBA_ADMIN' ? (selectedTenantId === 'all' || !selectedTenantId ? '' : selectedTenantId) : currentUser.tenantId
+    });
     setGeneratedPassword('');
     setNotificationStatus('');
     setIsSubmitting(false);
@@ -131,7 +146,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpCo
         email: formData.email!,
         authType: formData.authType as 'SSO' | 'BASIC',
         role: formData.role as 'ADMIN' | 'USER',
-        password: formData.password
+        password: formData.password,
+        tenantId: currentUser.tenantId // Inherit tenantId from creator
       };
       // Use functional update to ensure we have the latest state
       setUsers(prev => [newUser, ...prev]);
@@ -152,12 +168,30 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpCo
             <p className="text-slate-500 text-xs">Manage enterprise identity, roles, and authentication methods.</p>
           </div>
         </div>
-        <button 
-          onClick={handleOpenAdd}
-          className="bg-slate-900 hover:bg-black text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-200"
-        >
-          <UserPlus size={18} /> Provision User
-        </button>
+        
+        <div className="flex items-center gap-3">
+          {currentUser.role === 'DBA_ADMIN' && (
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2">
+              <Building2 size={16} className="text-slate-400" />
+              <select 
+                className="bg-transparent text-xs font-black uppercase tracking-widest outline-none"
+                value={selectedTenantId || 'all'}
+                onChange={e => onTenantChange(e.target.value)}
+              >
+                <option value="all">All Domains</option>
+                {tenants.map(t => (
+                  <option key={t.id} value={t.id}>{t.companyName}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button 
+            onClick={handleOpenAdd}
+            className="bg-slate-900 hover:bg-black text-white px-6 py-3 rounded-2xl flex items-center gap-2 transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-slate-200"
+          >
+            <UserPlus size={18} /> Provision User
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
@@ -165,6 +199,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpCo
           <thead className="bg-slate-50 border-b border-slate-100">
             <tr>
               <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Identity</th>
+              {currentUser.role === 'DBA_ADMIN' && <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Domain</th>}
               <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Auth Method</th>
               <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Password</th>
               <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">System Role</th>
@@ -172,63 +207,82 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpCo
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {users.map(u => (
-              <tr key={u.id} className="hover:bg-slate-50/50 transition-colors group">
-                <td className="px-8 py-5">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold group-hover:bg-blue-50 group-hover:text-blue-500 transition-all">
-                      {u.name.charAt(0)}
+            {filteredUsers.map(u => {
+              const tenant = tenants.find(t => t.id === u.tenantId);
+              return (
+                <tr key={u.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="px-8 py-5">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold group-hover:bg-blue-50 group-hover:text-blue-500 transition-all">
+                        {u.name.charAt(0)}
+                      </div>
+                      <div>
+                        <div className="font-black text-slate-800 text-sm tracking-tight">{u.name}</div>
+                        <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1"><Mail size={10} /> {u.email}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-black text-slate-800 text-sm tracking-tight">{u.name}</div>
-                      <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1"><Mail size={10} /> {u.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-8 py-5">
-                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${u.authType === 'SSO' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
-                    {u.authType === 'SSO' ? <Globe size={10} /> : <Fingerprint size={10} />}
-                    {u.authType}
-                  </div>
-                </td>
-                <td className="px-8 py-5">
-                  {u.authType === 'BASIC' ? (
-                    <div className="flex items-center gap-2">
-                       <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                         {visiblePasswords.has(u.id) ? (u.password || 'Not Set') : '••••••••'}
-                       </span>
-                       <button onClick={() => togglePasswordVisibility(u.id)} className="text-slate-400 hover:text-blue-600">
-                          {visiblePasswords.has(u.id) ? <EyeOff size={14}/> : <Eye size={14}/>}
-                       </button>
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 italic">Managed by IDP</span>
+                  </td>
+                  {currentUser.role === 'DBA_ADMIN' && (
+                    <td className="px-8 py-5">
+                      {tenant ? (
+                        <div className="flex items-center gap-2">
+                          <Building2 size={12} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-600">{tenant.companyName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Global Admin</span>
+                      )}
+                    </td>
                   )}
-                </td>
-                <td className="px-8 py-5">
-                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${u.role === 'ADMIN' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                    {u.role === 'ADMIN' ? <ShieldAlert size={10} /> : <Check size={10} />}
-                    {u.role}
-                  </div>
-                </td>
-                <td className="px-8 py-5 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button 
-                      onClick={() => handleOpenEdit(u)}
-                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(u.id)}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  <td className="px-8 py-5">
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${u.authType === 'SSO' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
+                      {u.authType === 'SSO' ? <Globe size={10} /> : <Fingerprint size={10} />}
+                      {u.authType}
+                    </div>
+                  </td>
+                  <td className="px-8 py-5">
+                    {u.authType === 'BASIC' ? (
+                      <div className="flex items-center gap-2">
+                         <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                           {visiblePasswords.has(u.id) ? (u.password || 'Not Set') : '••••••••'}
+                         </span>
+                         <button onClick={() => togglePasswordVisibility(u.id)} className="text-slate-400 hover:text-blue-600">
+                            {visiblePasswords.has(u.id) ? <EyeOff size={14}/> : <Eye size={14}/>}
+                         </button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 italic">Managed by IDP</span>
+                    )}
+                  </td>
+                  <td className="px-8 py-5">
+                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${u.role === 'ADMIN' ? 'bg-red-50 text-red-600' : u.role === 'DBA_ADMIN' ? 'bg-slate-900 text-white' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {u.role === 'ADMIN' ? <ShieldAlert size={10} /> : u.role === 'DBA_ADMIN' ? <Shield size={10} /> : <Check size={10} />}
+                      {u.role}
+                    </div>
+                  </td>
+                  <td className="px-8 py-5 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {u.role !== 'DBA_ADMIN' && (
+                        <>
+                          <button 
+                            onClick={() => handleOpenEdit(u)}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(u.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -316,6 +370,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpCo
                   </select>
                 </div>
               </div>
+
+              {currentUser.role === 'DBA_ADMIN' && !editingUser && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assign to Domain</label>
+                  <select 
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-black outline-none"
+                    value={formData.tenantId}
+                    onChange={e => setFormData({ ...formData, tenantId: e.target.value })}
+                    required
+                  >
+                    <option value="">Select Domain...</option>
+                    {tenants.map(t => (
+                      <option key={t.id} value={t.id}>{t.companyName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {notificationStatus && (
                   <div className={`text-center text-xs font-bold animate-pulse ${notificationStatus.includes('failed') || notificationStatus.includes('error') ? 'text-amber-600' : 'text-blue-600'}`}>

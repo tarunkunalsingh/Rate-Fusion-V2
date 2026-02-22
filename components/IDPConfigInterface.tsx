@@ -1,14 +1,18 @@
 
 import React, { useState } from 'react';
-import { IDPConfig } from '../types';
-import { Globe, ShieldCheck, Key, Link2, Info, Save, ToggleLeft, ToggleRight, HelpCircle, Loader2, Check } from 'lucide-react';
+import { IDPConfig, Tenant, User } from '../types';
+import { Globe, ShieldCheck, Key, Link2, Info, Save, ToggleLeft, ToggleRight, HelpCircle, Loader2, Check, Building2 } from 'lucide-react';
 
 interface IDPConfigInterfaceProps {
   config: IDPConfig;
   setConfig: (config: IDPConfig) => void;
+  tenants: Tenant[];
+  currentUser: User;
+  onTenantChange: (tenantId: string) => void;
+  selectedTenantId: string;
 }
 
-const IDPConfigInterface: React.FC<IDPConfigInterfaceProps> = ({ config, setConfig }) => {
+const IDPConfigInterface: React.FC<IDPConfigInterfaceProps> = ({ config, setConfig, tenants, currentUser, onTenantChange, selectedTenantId }) => {
   const [status, setStatus] = useState<'idle' | 'saving' | 'success'>('idle');
 
   const handleChange = (field: keyof IDPConfig, value: any) => {
@@ -44,19 +48,45 @@ const IDPConfigInterface: React.FC<IDPConfigInterfaceProps> = ({ config, setConf
               <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-bold">Enterprise Identity Provider (IDP) Settings</p>
             </div>
           </div>
-          <button 
-            onClick={() => handleChange('enabled', !config.enabled)}
-            className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${config.enabled ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}
-          >
-            {config.enabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} />}
-            {config.enabled ? 'SSO ACTIVE' : 'SSO DISABLED'}
-          </button>
+          
+          <div className="flex flex-col items-end gap-4">
+            {currentUser.role === 'DBA_ADMIN' && (
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2">
+                <Building2 size={16} className="text-slate-400" />
+                <select 
+                  className="bg-transparent text-xs font-black uppercase tracking-widest outline-none"
+                  value={selectedTenantId}
+                  onChange={e => onTenantChange(e.target.value)}
+                >
+                  <option value="">Select Domain...</option>
+                  {tenants.map(t => (
+                    <option key={t.id} value={t.id}>{t.companyName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <button 
+              onClick={() => handleChange('enabled', !config.enabled)}
+              className={`flex items-center gap-3 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${config.enabled ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}
+            >
+              {config.enabled ? <ToggleRight size={20} className="text-emerald-500" /> : <ToggleLeft size={20} />}
+              {config.enabled ? 'SSO ACTIVE' : 'SSO DISABLED'}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="space-y-6">
-          <div className="bg-white rounded-3xl border border-slate-200 p-8 space-y-5 shadow-sm">
+      {currentUser.role === 'DBA_ADMIN' && (!selectedTenantId || selectedTenantId === 'all') ? (
+        <div className="bg-white rounded-3xl border border-slate-200 p-20 text-center space-y-4">
+          <Building2 size={64} className="mx-auto text-slate-200" />
+          <h3 className="text-xl font-black text-slate-400 uppercase tracking-tight">Select a Domain to Configure SSO</h3>
+          <p className="text-slate-400 text-sm">Global administrators must select a specific domain to manage its identity provider settings.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <div className="bg-white rounded-3xl border border-slate-200 p-8 space-y-5 shadow-sm">
             <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-between">
               <span className="flex items-center gap-2"><Info size={14} /> Provider Authentication</span>
               <span className="text-blue-500 flex items-center gap-1 cursor-help group relative">
@@ -187,8 +217,10 @@ const IDPConfigInterface: React.FC<IDPConfigInterfaceProps> = ({ config, setConf
           </p>
         </div>
       </div>
-    </div>
-  );
+    </>
+    )}
+  </div>
+);
 };
 
 export default IDPConfigInterface;

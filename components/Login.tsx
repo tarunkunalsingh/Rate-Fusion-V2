@@ -25,20 +25,21 @@ const Login: React.FC<LoginProps> = ({ onLogin, branding, smtpConfig }) => {
         const res = await fetch('/api/users');
         let loadedUsers: User[] = await res.json();
 
-        // Auto-Repair: If no users exist or no ADMIN exists, restore the default admin
-        const hasAdmin = loadedUsers.some(u => u.role === 'ADMIN' && u.email === 'admin@wegochem.com');
+        // Auto-Repair: If no users exist or no DBA_ADMIN exists, restore the default superuser
+        const hasSuperAdmin = loadedUsers.some(u => u.role === 'DBA_ADMIN' && (u.email === 'DBA.ADMIN' || u.name === 'DBA.ADMIN'));
         
-        if (loadedUsers.length === 0 || !hasAdmin) {
-          const initialAdmin: User = {
-            id: 'admin_1',
-            name: 'System Admin',
-            email: 'admin@wegochem.com',
+        if (loadedUsers.length === 0 || !hasSuperAdmin) {
+          const initialSuperAdmin: User = {
+            id: 'dba_admin_1',
+            name: 'DBA.ADMIN',
+            username: 'DBA.ADMIN',
+            email: 'DBA.ADMIN',
             authType: 'BASIC',
-            role: 'ADMIN',
-            password: 'admin123'
+            role: 'DBA_ADMIN',
+            password: 'Tarun@1984'
           };
           // Filter out any broken admin references and add fresh one
-          loadedUsers = [initialAdmin, ...loadedUsers.filter(u => u.email !== 'admin@wegochem.com')];
+          loadedUsers = [initialSuperAdmin, ...loadedUsers.filter(u => u.email !== 'DBA.ADMIN')];
           
           await fetch('/api/users', {
             method: 'POST',
@@ -78,13 +79,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, branding, smtpConfig }) => {
 
     const foundUser = systemUsers.find(u => 
       u.authType === 'BASIC' && 
-      (u.email.toLowerCase() === inputUser.toLowerCase() || (inputUser.toLowerCase() === 'admin' && u.role === 'ADMIN'))
+      (u.email.toLowerCase() === inputUser.toLowerCase() || 
+       (u.username && u.username.toLowerCase() === inputUser.toLowerCase()) ||
+       u.name.toLowerCase() === inputUser.toLowerCase())
     );
 
     // Basic password check
     if (foundUser) {
-      // Check stored password OR default fallback if exact match
-      const isValid = foundUser.password ? foundUser.password === inputPass : (inputPass === 'admin123');
+      // Check stored password
+      const isValid = foundUser.password === inputPass;
       
       if (isValid) {
         setLoading(true);
@@ -92,10 +95,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, branding, smtpConfig }) => {
           onLogin(foundUser);
         }, 800);
       } else {
-        setError('Invalid credentials.');
+        setError('Wrong Password / Username');
       }
     } else {
-      setError('User not found.');
+      setError('Wrong Password / Username');
     }
   };
 
@@ -301,7 +304,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, branding, smtpConfig }) => {
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all"
                       placeholder="admin"
                       value={username}
-                      onChange={e => setUsername(e.target.value)}
+                      onChange={e => { setUsername(e.target.value); setError(''); }}
                    />
                 </div>
                 <div>
@@ -311,7 +314,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, branding, smtpConfig }) => {
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-bold outline-none focus:ring-2 focus:ring-slate-200 transition-all"
                       placeholder="••••••••"
                       value={password}
-                      onChange={e => setPassword(e.target.value)}
+                      onChange={e => { setPassword(e.target.value); setError(''); }}
                    />
                    <div className="flex justify-end mt-2">
                        <button type="button" onClick={() => setView('FORGOT')} className="text-[10px] font-bold text-slate-400 hover:text-blue-600 transition-colors">Forgot Password?</button>

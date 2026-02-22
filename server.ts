@@ -11,7 +11,8 @@ import {
   SMTPConfig, 
   ServerProfile, 
   IDPConfig, 
-  TransmissionLogEntry 
+  TransmissionLogEntry,
+  Tenant
 } from './types';
 import { 
   RAW_COUNTRIES, 
@@ -51,27 +52,71 @@ let logicProfiles: LogicProfile[] = [
   }
 ];
 let branding: BrandingConfig = DEFAULT_BRANDING;
-let smtpConfig: SMTPConfig = {
-  host: '', port: 587, user: '', pass: '', fromEmail: '', enabled: false,
-  templates: {
-    userCreated: ENTERPRISE_HTML_TEMPLATE_CREATED,
-    passwordReset: ENTERPRISE_HTML_TEMPLATE_RESET,
-    projectBackup: ENTERPRISE_HTML_TEMPLATE_BACKUP
-  }
-};
+let smtpConfigs: SMTPConfig[] = [];
 let serverProfiles: ServerProfile[] = [];
 let users: User[] = [];
-let idpConfig: IDPConfig = {
-  providerName: '', discoveryUrl: '', clientId: '', clientSecret: '', scopes: '', enabled: false 
-};
+let idpConfigs: IDPConfig[] = [];
 let transmissionLogs: TransmissionLogEntry[] = [];
+let tenants: Tenant[] = [];
 
 // --- API ROUTES ---
 
+// Helper to filter by tenant
+const filterByTenant = (req: express.Request, data: any[]) => {
+  const tenantId = req.query.tenantId as string;
+  if (!tenantId) return data;
+  return data.filter(item => item.tenantId === tenantId || !item.tenantId); // Allow global data
+};
+
+// Tenants
+app.get('/api/tenants', (req, res) => res.json(tenants));
+app.post('/api/tenants', (req, res) => {
+  tenants = req.body;
+  res.json({ success: true });
+});
+
+app.post('/api/tenants/provision', (req, res) => {
+  const { tenant, adminUser } = req.body;
+  
+  // 1. Add Tenant
+  tenants.push(tenant);
+  
+  // 2. Add Admin User
+  users.push(adminUser);
+  
+  // 3. Seed Default Master Data for this tenant
+  const tenantMasterData: MasterDataCategory[] = [
+    { id: `md_countries_${tenant.id}`, name: 'Countries (ISO2)', type: 'LIST', records: [...RAW_COUNTRIES].sort(), tenantId: tenant.id },
+    { id: `md_unlocodes_${tenant.id}`, name: 'UNLOCODES', type: 'LIST', records: [...RAW_UNLOCODES].sort(), tenantId: tenant.id }
+  ];
+  masterData.push(...tenantMasterData);
+  
+  // 4. Seed Default Logic Profile for this tenant
+  const tenantLogicProfile: LogicProfile = { 
+    id: `default_${tenant.id}`, 
+    name: 'Standard OTM Logic', 
+    isDefault: true, 
+    config: DEFAULT_LOGIC_CONFIG,
+    variables: {
+      'IS_PREFERRED_VAR': '"Y"'
+    },
+    transmissionSequence: Object.keys(DEFAULT_LOGIC_CONFIG),
+    tenantId: tenant.id
+  };
+  logicProfiles.push(tenantLogicProfile);
+  
+  res.json({ success: true });
+});
+
 // Projects
-app.get('/api/projects', (req, res) => res.json(projects));
+app.get('/api/projects', (req, res) => res.json(filterByTenant(req, projects)));
 app.post('/api/projects', (req, res) => {
-  projects = req.body;
+  const tenantId = req.query.tenantId as string;
+  if (tenantId) {
+    projects = [...projects.filter(p => p.tenantId !== tenantId), ...req.body.map((p: any) => ({ ...p, tenantId }))];
+  } else {
+    projects = req.body;
+  }
   res.json({ success: true });
 });
 app.put('/api/projects/:id', (req, res) => {
@@ -85,56 +130,100 @@ app.put('/api/projects/:id', (req, res) => {
 });
 
 // Master Data
-app.get('/api/master-data', (req, res) => res.json(masterData));
+app.get('/api/master-data', (req, res) => res.json(filterByTenant(req, masterData)));
 app.post('/api/master-data', (req, res) => {
-  masterData = req.body;
+  const tenantId = req.query.tenantId as string;
+  if (tenantId) {
+    masterData = [...masterData.filter(m => m.tenantId !== tenantId), ...req.body.map((m: any) => ({ ...m, tenantId }))];
+  } else {
+    masterData = req.body;
+  }
   res.json({ success: true });
 });
 
 // Logic Profiles
-app.get('/api/logic-profiles', (req, res) => res.json(logicProfiles));
+app.get('/api/logic-profiles', (req, res) => res.json(filterByTenant(req, logicProfiles)));
 app.post('/api/logic-profiles', (req, res) => {
-  logicProfiles = req.body;
+  const tenantId = req.query.tenantId as string;
+  if (tenantId) {
+    logicProfiles = [...logicProfiles.filter(l => l.tenantId !== tenantId), ...req.body.map((l: any) => ({ ...l, tenantId }))];
+  } else {
+    logicProfiles = req.body;
+  }
   res.json({ success: true });
 });
 
 // Branding
-app.get('/api/branding', (req, res) => res.json(branding));
+app.get('/api/branding', (req, res) => res.json(branding)); // Branding is global for now or could be tenant based
 app.post('/api/branding', (req, res) => {
   branding = req.body;
   res.json({ success: true });
 });
 
 // SMTP
-app.get('/api/smtp', (req, res) => res.json(smtpConfig));
+app.get('/api/smtp', (req, res) => {
+  const tenantId = req.query.tenantId as string;
+  const config = smtpConfigs.find(s => s.tenantId === tenantId);
+  res.json(config || {
+    host: '', port: 587, user: '', pass: '', fromEmail: '', enabled: false,
+    templates: {
+      userCreated: ENTERPRISE_HTML_TEMPLATE_CREATED,
+      passwordReset: ENTERPRISE_HTML_TEMPLATE_RESET,
+      projectBackup: ENTERPRISE_HTML_TEMPLATE_BACKUP
+    },
+    tenantId
+  });
+});
 app.post('/api/smtp', (req, res) => {
-  smtpConfig = req.body;
+  const tenantId = req.query.tenantId as string;
+  if (tenantId) {
+    smtpConfigs = [...smtpConfigs.filter(s => s.tenantId !== tenantId), { ...req.body, tenantId }];
+  }
   res.json({ success: true });
 });
 
 // Server Profiles
-app.get('/api/server-profiles', (req, res) => res.json(serverProfiles));
+app.get('/api/server-profiles', (req, res) => res.json(filterByTenant(req, serverProfiles)));
 app.post('/api/server-profiles', (req, res) => {
-  serverProfiles = req.body;
+  const tenantId = req.query.tenantId as string;
+  if (tenantId) {
+    serverProfiles = [...serverProfiles.filter(s => s.tenantId !== tenantId), ...req.body.map((s: any) => ({ ...s, tenantId }))];
+  } else {
+    serverProfiles = req.body;
+  }
   res.json({ success: true });
 });
 
 // Users
-app.get('/api/users', (req, res) => res.json(users));
+app.get('/api/users', (req, res) => res.json(filterByTenant(req, users)));
 app.post('/api/users', (req, res) => {
-  users = req.body;
+  const tenantId = req.query.tenantId as string;
+  if (tenantId) {
+    users = [...users.filter(u => u.tenantId !== tenantId), ...req.body.map((u: any) => ({ ...u, tenantId }))];
+  } else {
+    users = req.body;
+  }
   res.json({ success: true });
 });
 
 // IDP Config
-app.get('/api/idp-config', (req, res) => res.json(idpConfig));
+app.get('/api/idp-config', (req, res) => {
+  const tenantId = req.query.tenantId as string;
+  const config = idpConfigs.find(i => i.tenantId === tenantId);
+  res.json(config || {
+    providerName: '', discoveryUrl: '', clientId: '', clientSecret: '', scopes: '', enabled: false, tenantId
+  });
+});
 app.post('/api/idp-config', (req, res) => {
-  idpConfig = req.body;
+  const tenantId = req.query.tenantId as string;
+  if (tenantId) {
+    idpConfigs = [...idpConfigs.filter(i => i.tenantId !== tenantId), { ...req.body, tenantId }];
+  }
   res.json({ success: true });
 });
 
 // Transmission Logs
-app.get('/api/logs', (req, res) => res.json(transmissionLogs));
+app.get('/api/logs', (req, res) => res.json(filterByTenant(req, transmissionLogs)));
 app.post('/api/logs', (req, res) => {
   const newLog = req.body;
   transmissionLogs = [newLog, ...transmissionLogs];

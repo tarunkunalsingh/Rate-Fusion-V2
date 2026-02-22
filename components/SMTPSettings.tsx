@@ -1,14 +1,18 @@
 
 import React, { useState } from 'react';
-import { SMTPConfig } from '../types';
-import { Mail, Server, Lock, Type, Save, CheckCircle2, AlertTriangle, Code, Archive, Loader2, Check } from 'lucide-react';
+import { SMTPConfig, Tenant, User } from '../types';
+import { Mail, Server, Lock, Type, Save, CheckCircle2, AlertTriangle, Code, Archive, Loader2, Check, Building2 } from 'lucide-react';
 
 interface SMTPSettingsProps {
   config: SMTPConfig;
   setConfig: (config: SMTPConfig) => void;
+  tenants: Tenant[];
+  currentUser: User;
+  onTenantChange: (tenantId: string) => void;
+  selectedTenantId: string;
 }
 
-const SMTPSettings: React.FC<SMTPSettingsProps> = ({ config, setConfig }) => {
+const SMTPSettings: React.FC<SMTPSettingsProps> = ({ config, setConfig, tenants, currentUser, onTenantChange, selectedTenantId }) => {
   const [status, setStatus] = useState<'idle' | 'saving' | 'success'>('idle');
 
   const handleChange = (field: keyof SMTPConfig, value: any) => {
@@ -42,18 +46,44 @@ const SMTPSettings: React.FC<SMTPSettingsProps> = ({ config, setConfig }) => {
         <div className="absolute top-0 right-0 p-10 text-slate-100 opacity-20">
           <Mail size={180} />
         </div>
-        <h2 className="text-3xl font-black text-slate-800 flex items-center gap-4 uppercase tracking-tight relative z-10">
-          <span className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-slate-200">
-            <Server size={24} />
-          </span>
-          SMTP Configuration
-        </h2>
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
+          <h2 className="text-3xl font-black text-slate-800 flex items-center gap-4 uppercase tracking-tight">
+            <span className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-slate-200">
+              <Server size={24} />
+            </span>
+            SMTP Configuration
+          </h2>
+          
+          {currentUser.role === 'DBA_ADMIN' && (
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-2 shadow-sm">
+              <Building2 size={16} className="text-slate-400" />
+              <select 
+                className="bg-transparent text-xs font-black uppercase tracking-widest outline-none"
+                value={selectedTenantId}
+                onChange={e => onTenantChange(e.target.value)}
+              >
+                <option value="">Select Domain...</option>
+                {tenants.map(t => (
+                  <option key={t.id} value={t.id}>{t.companyName}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
         <p className="text-slate-500 mt-4 text-sm font-medium leading-relaxed max-w-2xl relative z-10">
           Configure the outbound mail server for system notifications. Customize HTML templates for user onboarding and password management.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {currentUser.role === 'DBA_ADMIN' && (!selectedTenantId || selectedTenantId === 'all') ? (
+        <div className="bg-white rounded-3xl border border-slate-200 p-20 text-center space-y-4">
+          <Building2 size={64} className="mx-auto text-slate-200" />
+          <h3 className="text-xl font-black text-slate-400 uppercase tracking-tight">Select a Domain to Configure SMTP</h3>
+          <p className="text-slate-400 text-sm">Global administrators must select a specific domain to manage its mail server settings.</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* Server Config */}
         <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6 h-fit">
@@ -169,23 +199,25 @@ const SMTPSettings: React.FC<SMTPSettingsProps> = ({ config, setConfig }) => {
            </div>
         </div>
       </div>
-      
+        
       <div className="flex justify-end">
-        <button 
-          onClick={handleSave}
-          disabled={status === 'saving'}
-          className={`px-8 py-4 rounded-2xl flex items-center gap-3 transition-all font-black text-xs uppercase tracking-widest shadow-xl ${status === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-200' : 'bg-slate-900 hover:bg-black text-white shadow-slate-200'}`}
-        >
-            {status === 'saving' ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : status === 'success' ? (
-              <Check size={18} />
-            ) : (
-              <Save size={18} />
-            )}
-            {status === 'saving' ? 'Saving...' : status === 'success' ? 'Saved Successfully' : 'Save Settings'}
-        </button>
-      </div>
+          <button 
+            onClick={handleSave}
+            disabled={status === 'saving'}
+            className={`px-8 py-4 rounded-2xl flex items-center gap-3 transition-all font-black text-xs uppercase tracking-widest shadow-xl ${status === 'success' ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-200' : 'bg-slate-900 hover:bg-black text-white shadow-slate-200'}`}
+          >
+              {status === 'saving' ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : status === 'success' ? (
+                <Check size={18} />
+              ) : (
+                <Save size={18} />
+              )}
+              {status === 'saving' ? 'Saving...' : status === 'success' ? 'Saved Successfully' : 'Save Settings'}
+          </button>
+        </div>
+      </>
+      )}
     </div>
   );
 };

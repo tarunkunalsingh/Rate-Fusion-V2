@@ -1,13 +1,23 @@
 
+export interface Tenant {
+  id: string;
+  companyName: string;
+  adminEmail: string;
+  createdAt: number;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
 export interface User {
   id: string;
   name: string;
+  username?: string;
   nickname?: string;
   avatarUrl?: string;
   email: string;
   authType: 'SSO' | 'BASIC';
-  role: 'ADMIN' | 'USER';
+  role: 'DBA_ADMIN' | 'ADMIN' | 'USER';
   password?: string;
+  tenantId?: string; // Null for DBA_ADMIN
 }
 
 export interface IDPConfig {
@@ -17,6 +27,7 @@ export interface IDPConfig {
   clientSecret: string;
   scopes: string;
   enabled: boolean;
+  tenantId?: string;
 }
 
 export interface SMTPConfig {
@@ -31,6 +42,7 @@ export interface SMTPConfig {
     passwordReset: string;
     projectBackup: string;
   };
+  tenantId?: string;
 }
 
 export type ThemeColor = 'blue' | 'indigo' | 'emerald' | 'slate' | 'violet';
@@ -54,6 +66,7 @@ export interface ServerProfile {
   username: string;
   password?: string;
   type: 'SOAP' | 'REST';
+  tenantId?: string;
 }
 
 export interface MasterDataCategory {
@@ -62,6 +75,7 @@ export interface MasterDataCategory {
   type: 'LIST' | 'KEY_VALUE'; // Distinguished type
   records: string[]; // Used for LIST validation
   dataMap?: Record<string, string>; // Used for KEY_VALUE lookups
+  tenantId?: string;
 }
 
 export type TransportMode = 'OCEAN' | 'DRAYAGE' | 'TL' | 'LTL';
@@ -89,6 +103,7 @@ export interface LogicProfile {
   config: TransformationConfig;
   variables?: Record<string, string>; // User defined constants/variables
   transmissionSequence?: string[]; // Defines the order of XML generation and transmission
+  tenantId?: string;
 }
 
 export interface TransmissionLogEntry {
@@ -103,6 +118,7 @@ export interface TransmissionLogEntry {
   otmStatus?: any; // To store the REST response JSON
   message: string;
   rawResponse?: string;
+  tenantId?: string;
 }
 
 export interface Project {
@@ -128,6 +144,7 @@ export interface Project {
   status: 'draft' | 'validated' | 'converted' | 'transmitted';
   validationConfig: Record<string, string>; // map of csvHeader -> masterDataCategoryId
   selectedLogicProfileId?: string; // Track which logic was used
+  tenantId?: string;
 }
 
 // Kept for initial default generation, but Logic Editor now supports dynamic keys

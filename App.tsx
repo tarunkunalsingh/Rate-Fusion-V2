@@ -21,9 +21,10 @@ import {
   Truck,
   Menu,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ShieldAlert
 } from 'lucide-react';
-import { Project, ServerProfile, MasterDataCategory, TransformationConfig, User, IDPConfig, LogicProfile, BrandingConfig, SMTPConfig, TransmissionLogEntry } from './types';
+import { Project, ServerProfile, MasterDataCategory, TransformationConfig, User, IDPConfig, LogicProfile, BrandingConfig, SMTPConfig, TransmissionLogEntry, Tenant } from './types';
 import { 
   RAW_COUNTRIES, 
   RAW_UNLOCODES, 
@@ -47,6 +48,7 @@ import BrandingSettings from './components/BrandingSettings';
 import SMTPSettings from './components/SMTPSettings';
 import RateSearch from './components/RateSearch';
 import TransmissionLogs from './components/TransmissionLogs';
+import TenantManagement from './components/TenantManagement';
 
 // --- DATA INJECTION START ---
 // Constants moved to constants.ts
@@ -56,12 +58,13 @@ import ConfirmationModal from './components/ConfirmationModal';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [activeView, setActiveView] = useState<'dashboard' | 'rate-search' | 'master-data' | 'logic' | 'profiles' | 'users' | 'idp' | 'smtp' | 'help' | 'branding' | 'logs'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'rate-search' | 'master-data' | 'logic' | 'profiles' | 'users' | 'idp' | 'smtp' | 'help' | 'branding' | 'logs' | 'tenants'>('dashboard');
   
   // State Initialization (Empty initially, populated from API)
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentProject, setCurrentProject] = useState<Project | null>(null);
   const [transmissionLogs, setTransmissionLogs] = useState<TransmissionLogEntry[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   // Modal State for User Profile
@@ -96,78 +99,96 @@ const App: React.FC = () => {
 
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Initial Data Fetch
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [
-          projectsRes, 
-          masterDataRes, 
-          logicProfilesRes, 
-          brandingRes, 
-          smtpRes, 
-          serverProfilesRes, 
-          usersRes, 
-          idpRes,
-          logsRes
-        ] = await Promise.all([
-          fetch('/api/projects'),
-          fetch('/api/master-data'),
-          fetch('/api/logic-profiles'),
-          fetch('/api/branding'),
-          fetch('/api/smtp'),
-          fetch('/api/server-profiles'),
-          fetch('/api/users'),
-          fetch('/api/idp-config'),
-          fetch('/api/logs')
-        ]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('');
 
-        if (projectsRes.ok) setProjects(await projectsRes.json());
-        if (masterDataRes.ok) setMasterData(await masterDataRes.json());
-        if (logicProfilesRes.ok) setLogicProfiles(await logicProfilesRes.json());
-        if (brandingRes.ok) setBranding(await brandingRes.json());
-        if (smtpRes.ok) setSmtpConfig(await smtpRes.json());
-        if (serverProfilesRes.ok) setServerProfiles(await serverProfilesRes.json());
-        if (usersRes.ok) setAppUsers(await usersRes.json());
-        if (idpRes.ok) setIdpConfig(await idpRes.json());
-        if (logsRes.ok) setTransmissionLogs(await logsRes.json());
-        
-        setIsLoaded(true);
-      } catch (error) {
-        console.error("Failed to fetch initial data", error);
-      }
-    };
+  // Initial Data Fetch
+  const fetchData = async (tenantId?: string) => {
+    try {
+      const query = tenantId ? `?tenantId=${tenantId}` : '';
+      const [
+        projectsRes, 
+        masterDataRes, 
+        logicProfilesRes, 
+        brandingRes, 
+        smtpRes, 
+        serverProfilesRes, 
+        usersRes, 
+        idpRes,
+        logsRes,
+        tenantsRes
+      ] = await Promise.all([
+        fetch(`/api/projects${query}`),
+        fetch(`/api/master-data${query}`),
+        fetch(`/api/logic-profiles${query}`),
+        fetch('/api/branding'),
+        fetch(`/api/smtp${query}`),
+        fetch(`/api/server-profiles${query}`),
+        fetch(`/api/users${query}`),
+        fetch(`/api/idp-config${query}`),
+        fetch(`/api/logs${query}`),
+        fetch('/api/tenants')
+      ]);
+
+      if (projectsRes.ok) setProjects(await projectsRes.json());
+      if (masterDataRes.ok) setMasterData(await masterDataRes.json());
+      if (logicProfilesRes.ok) setLogicProfiles(await logicProfilesRes.json());
+      if (brandingRes.ok) setBranding(await brandingRes.json());
+      if (smtpRes.ok) setSmtpConfig(await smtpRes.json());
+      if (serverProfilesRes.ok) setServerProfiles(await serverProfilesRes.json());
+      if (usersRes.ok) setAppUsers(await usersRes.json());
+      if (idpRes.ok) setIdpConfig(await idpRes.json());
+      if (logsRes.ok) setTransmissionLogs(await logsRes.json());
+      if (tenantsRes.ok) setTenants(await tenantsRes.json());
+      
+      setIsLoaded(true);
+    } catch (error) {
+      console.error("Failed to fetch initial data", error);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
   // Persistence Effects (Only run after initial load)
   useEffect(() => { 
-    if (isLoaded) fetch('/api/master-data', { method: 'POST', body: JSON.stringify(masterData), headers: {'Content-Type': 'application/json'} }); 
-  }, [masterData, isLoaded]);
+    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+    if (isLoaded) fetch(`/api/master-data${query}`, { method: 'POST', body: JSON.stringify(masterData), headers: {'Content-Type': 'application/json'} }); 
+  }, [masterData, isLoaded, user?.tenantId]);
   
   useEffect(() => { 
-    if (isLoaded) fetch('/api/logic-profiles', { method: 'POST', body: JSON.stringify(logicProfiles), headers: {'Content-Type': 'application/json'} }); 
-  }, [logicProfiles, isLoaded]);
+    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+    if (isLoaded) fetch(`/api/logic-profiles${query}`, { method: 'POST', body: JSON.stringify(logicProfiles), headers: {'Content-Type': 'application/json'} }); 
+  }, [logicProfiles, isLoaded, user?.tenantId]);
   
   useEffect(() => { 
     if (isLoaded) fetch('/api/branding', { method: 'POST', body: JSON.stringify(branding), headers: {'Content-Type': 'application/json'} }); 
   }, [branding, isLoaded]);
   
   useEffect(() => { 
-    if (isLoaded) fetch('/api/smtp', { method: 'POST', body: JSON.stringify(smtpConfig), headers: {'Content-Type': 'application/json'} }); 
-  }, [smtpConfig, isLoaded]);
+    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+    if (isLoaded) fetch(`/api/smtp${query}`, { method: 'POST', body: JSON.stringify(smtpConfig), headers: {'Content-Type': 'application/json'} }); 
+  }, [smtpConfig, isLoaded, user?.tenantId]);
   
   useEffect(() => { 
-    if (isLoaded) fetch('/api/projects', { method: 'POST', body: JSON.stringify(projects), headers: {'Content-Type': 'application/json'} }); 
-  }, [projects, isLoaded]);
+    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+    if (isLoaded) fetch(`/api/idp-config${query}`, { method: 'POST', body: JSON.stringify(idpConfig), headers: {'Content-Type': 'application/json'} }); 
+  }, [idpConfig, isLoaded, user?.tenantId]);
+  
+  useEffect(() => { 
+    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+    if (isLoaded) fetch(`/api/projects${query}`, { method: 'POST', body: JSON.stringify(projects), headers: {'Content-Type': 'application/json'} }); 
+  }, [projects, isLoaded, user?.tenantId]);
 
   useEffect(() => { 
-    if (isLoaded) fetch('/api/users', { method: 'POST', body: JSON.stringify(appUsers), headers: {'Content-Type': 'application/json'} }); 
-  }, [appUsers, isLoaded]);
+    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+    if (isLoaded) fetch(`/api/users${query}`, { method: 'POST', body: JSON.stringify(appUsers), headers: {'Content-Type': 'application/json'} }); 
+  }, [appUsers, isLoaded, user?.tenantId]);
 
   useEffect(() => { 
-    if (isLoaded) fetch('/api/server-profiles', { method: 'POST', body: JSON.stringify(serverProfiles), headers: {'Content-Type': 'application/json'} }); 
-  }, [serverProfiles, isLoaded]);
+    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+    if (isLoaded) fetch(`/api/server-profiles${query}`, { method: 'POST', body: JSON.stringify(serverProfiles), headers: {'Content-Type': 'application/json'} }); 
+  }, [serverProfiles, isLoaded, user?.tenantId]);
 
   // Sync current user session with appUsers updates
   useEffect(() => {
@@ -184,8 +205,20 @@ const App: React.FC = () => {
     fetch('/api/logs', { method: 'POST', body: JSON.stringify(log), headers: {'Content-Type': 'application/json'} });
   };
 
+  useEffect(() => {
+    if (user?.role === 'DBA_ADMIN' && selectedTenantId) {
+      fetchData(selectedTenantId);
+    }
+  }, [selectedTenantId, user?.role]);
+
   const handleLoginSuccess = (loggedInUser: User) => {
       setUser(loggedInUser);
+      if (loggedInUser.role === 'DBA_ADMIN') {
+        // For DBA_ADMIN, we might want to default to no tenant or first tenant
+        fetchData();
+      } else {
+        fetchData(loggedInUser.tenantId);
+      }
   };
 
   const handleLogout = () => {
@@ -377,11 +410,12 @@ const App: React.FC = () => {
       case 'master-data': return <MasterDataInterface masterData={masterData} setMasterData={setMasterData} />;
       case 'logic': return <LogicEditor logicProfiles={logicProfiles} setLogicProfiles={setLogicProfiles} masterData={masterData} />;
       case 'profiles': return <ServerProfilesInterface profiles={serverProfiles} setProfiles={setServerProfiles} />;
-      case 'users': return <UserManagement users={appUsers} setUsers={setAppUsers} smtpConfig={smtpConfig} />;
-      case 'idp': return <IDPConfigInterface config={idpConfig} setConfig={setIdpConfig} />;
-      case 'smtp': return <SMTPSettings config={smtpConfig} setConfig={setSmtpConfig} />;
+      case 'users': return <UserManagement users={appUsers} setUsers={setAppUsers} smtpConfig={smtpConfig} tenants={tenants} currentUser={user!} onTenantChange={setSelectedTenantId} selectedTenantId={selectedTenantId} />;
+      case 'idp': return <IDPConfigInterface config={idpConfig} setConfig={setIdpConfig} tenants={tenants} currentUser={user!} onTenantChange={setSelectedTenantId} selectedTenantId={selectedTenantId} />;
+      case 'smtp': return <SMTPSettings config={smtpConfig} setConfig={setSmtpConfig} tenants={tenants} currentUser={user!} onTenantChange={setSelectedTenantId} selectedTenantId={selectedTenantId} />;
       case 'branding': return <BrandingSettings config={branding} setConfig={setBranding} />;
       case 'logs': return <TransmissionLogs logs={transmissionLogs} profiles={serverProfiles} />;
+      case 'tenants': return <TenantManagement tenants={tenants} setTenants={setTenants} users={appUsers} setUsers={setAppUsers} />;
       case 'help': return <HelpSection />;
       default: return null;
     }
@@ -400,6 +434,9 @@ const App: React.FC = () => {
     { id: 'users', icon: Shield, label: 'Access Control' },
     { id: 'idp', icon: Globe, label: 'SSO Config' },
     { id: 'smtp', icon: Mail, label: 'SMTP Settings' },
+  ];
+
+  const globalAdminItems = [
     { id: 'branding', icon: Layout, label: 'Portal Branding' },
   ];
 
@@ -447,6 +484,31 @@ const App: React.FC = () => {
             )}
           </div>
 
+          {/* DBA Admin Section */}
+          {user.role === 'DBA_ADMIN' && (
+            <div className="mb-6">
+              <div className={`text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 px-4 ${isSidebarCollapsed ? 'hidden' : ''}`}>Global Admin</div>
+              <button 
+                onClick={() => setActiveView('tenants')}
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all mb-1 ${activeView === 'tenants' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+              >
+                <ShieldAlert size={20} />
+                {!isSidebarCollapsed && <span className="text-sm font-bold">Domain Control</span>}
+              </button>
+              {globalAdminItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => { setActiveView(item.id as any); setCurrentProject(null); }}
+                  className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-4'} py-3 rounded-xl transition-all text-sm font-bold border border-transparent ${activeView === item.id ? `${THEME_MAP[branding.themeColor]} text-white shadow-lg border-white/10` : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                  title={isSidebarCollapsed ? item.label : ''}
+                >
+                  <item.icon size={18} /> 
+                  {!isSidebarCollapsed && <span>{item.label}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-6 w-full">
             <div className="space-y-2">
               {!isSidebarCollapsed && <p className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 animate-in fade-in">Workspace</p>}
@@ -463,7 +525,7 @@ const App: React.FC = () => {
               ))}
             </div>
 
-            {user.role === 'ADMIN' && (
+            {(user.role === 'ADMIN' || user.role === 'DBA_ADMIN') && (
               <div className="space-y-2">
                 {!isSidebarCollapsed && <p className="px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest mb-2 animate-in fade-in">Administration</p>}
                 {adminItems.map(item => (
