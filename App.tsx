@@ -151,44 +151,54 @@ const App: React.FC = () => {
   }, []);
 
   // Persistence Effects (Only run after initial load)
-  useEffect(() => { 
-    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
-    if (isLoaded) fetch(`/api/master-data${query}`, { method: 'POST', body: JSON.stringify(masterData), headers: {'Content-Type': 'application/json'} }); 
-  }, [masterData, isLoaded, user?.tenantId]);
-  
-  useEffect(() => { 
-    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
-    if (isLoaded) fetch(`/api/logic-profiles${query}`, { method: 'POST', body: JSON.stringify(logicProfiles), headers: {'Content-Type': 'application/json'} }); 
-  }, [logicProfiles, isLoaded, user?.tenantId]);
+  const getPersistenceQuery = () => {
+    if (user?.role === 'DBA_ADMIN') {
+      return selectedTenantId ? `?tenantId=${selectedTenantId}` : '';
+    }
+    return user?.tenantId ? `?tenantId=${user.tenantId}` : '';
+  };
+
+  const syncData = (endpoint: string, data: any[]) => {
+    if (!isLoaded) return;
+    const query = getPersistenceQuery();
+    let dataToSync = data;
+    
+    // If DBA_ADMIN is in a specific tenant view, ensure we only sync that tenant's data
+    if (user?.role === 'DBA_ADMIN' && selectedTenantId && selectedTenantId !== 'all') {
+      dataToSync = data.filter(item => item.tenantId === selectedTenantId);
+    }
+    
+    fetch(`${endpoint}${query}`, { 
+      method: 'POST', 
+      body: JSON.stringify(dataToSync), 
+      headers: {'Content-Type': 'application/json'} 
+    });
+  };
+
+  useEffect(() => { syncData('/api/master-data', masterData); }, [masterData, isLoaded, user?.tenantId, selectedTenantId]);
+  useEffect(() => { syncData('/api/logic-profiles', logicProfiles); }, [logicProfiles, isLoaded, user?.tenantId, selectedTenantId]);
   
   useEffect(() => { 
     if (isLoaded) fetch('/api/branding', { method: 'POST', body: JSON.stringify(branding), headers: {'Content-Type': 'application/json'} }); 
   }, [branding, isLoaded]);
   
   useEffect(() => { 
-    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
-    if (isLoaded) fetch(`/api/smtp${query}`, { method: 'POST', body: JSON.stringify(smtpConfig), headers: {'Content-Type': 'application/json'} }); 
-  }, [smtpConfig, isLoaded, user?.tenantId]);
+    if (isLoaded) {
+      const query = getPersistenceQuery();
+      fetch(`/api/smtp${query}`, { method: 'POST', body: JSON.stringify(smtpConfig), headers: {'Content-Type': 'application/json'} }); 
+    }
+  }, [smtpConfig, isLoaded, user?.tenantId, selectedTenantId]);
   
   useEffect(() => { 
-    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
-    if (isLoaded) fetch(`/api/idp-config${query}`, { method: 'POST', body: JSON.stringify(idpConfig), headers: {'Content-Type': 'application/json'} }); 
-  }, [idpConfig, isLoaded, user?.tenantId]);
+    if (isLoaded) {
+      const query = getPersistenceQuery();
+      fetch(`/api/idp-config${query}`, { method: 'POST', body: JSON.stringify(idpConfig), headers: {'Content-Type': 'application/json'} }); 
+    }
+  }, [idpConfig, isLoaded, user?.tenantId, selectedTenantId]);
   
-  useEffect(() => { 
-    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
-    if (isLoaded) fetch(`/api/projects${query}`, { method: 'POST', body: JSON.stringify(projects), headers: {'Content-Type': 'application/json'} }); 
-  }, [projects, isLoaded, user?.tenantId]);
-
-  useEffect(() => { 
-    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
-    if (isLoaded) fetch(`/api/users${query}`, { method: 'POST', body: JSON.stringify(appUsers), headers: {'Content-Type': 'application/json'} }); 
-  }, [appUsers, isLoaded, user?.tenantId]);
-
-  useEffect(() => { 
-    const query = user?.tenantId ? `?tenantId=${user.tenantId}` : '';
-    if (isLoaded) fetch(`/api/server-profiles${query}`, { method: 'POST', body: JSON.stringify(serverProfiles), headers: {'Content-Type': 'application/json'} }); 
-  }, [serverProfiles, isLoaded, user?.tenantId]);
+  useEffect(() => { syncData('/api/projects', projects); }, [projects, isLoaded, user?.tenantId, selectedTenantId]);
+  useEffect(() => { syncData('/api/users', appUsers); }, [appUsers, isLoaded, user?.tenantId, selectedTenantId]);
+  useEffect(() => { syncData('/api/server-profiles', serverProfiles); }, [serverProfiles, isLoaded, user?.tenantId, selectedTenantId]);
 
   // Sync current user session with appUsers updates
   useEffect(() => {

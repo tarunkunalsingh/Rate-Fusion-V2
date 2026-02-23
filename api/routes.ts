@@ -97,7 +97,7 @@ const syncToDisk = () => {
 // Helper to filter by tenant
 const filterByTenant = (req: express.Request, data: any[]) => {
   const tenantId = req.query.tenantId as string;
-  if (!tenantId) return data;
+  if (!tenantId || tenantId === 'all') return data;
   return data.filter(item => item.tenantId === tenantId || !item.tenantId);
 };
 
@@ -138,8 +138,8 @@ router.post('/tenants/provision', (req, res) => {
 router.get('/projects', (req, res) => res.json(filterByTenant(req, projects)));
 router.post('/projects', (req, res) => {
   const tenantId = req.query.tenantId as string;
-  if (tenantId) {
-    projects = [...projects.filter(p => p.tenantId !== tenantId), ...req.body.map((p: any) => ({ ...p, tenantId }))];
+  if (tenantId && tenantId !== 'all') {
+    projects = [...projects.filter(p => p.tenantId !== tenantId), ...req.body];
   } else {
     projects = req.body;
   }
@@ -161,8 +161,8 @@ router.put('/projects/:id', (req, res) => {
 router.get('/master-data', (req, res) => res.json(filterByTenant(req, masterData)));
 router.post('/master-data', (req, res) => {
   const tenantId = req.query.tenantId as string;
-  if (tenantId) {
-    masterData = [...masterData.filter(m => m.tenantId !== tenantId), ...req.body.map((m: any) => ({ ...m, tenantId }))];
+  if (tenantId && tenantId !== 'all') {
+    masterData = [...masterData.filter(m => m.tenantId !== tenantId), ...req.body];
   } else {
     masterData = req.body;
   }
@@ -174,8 +174,8 @@ router.post('/master-data', (req, res) => {
 router.get('/logic-profiles', (req, res) => res.json(filterByTenant(req, logicProfiles)));
 router.post('/logic-profiles', (req, res) => {
   const tenantId = req.query.tenantId as string;
-  if (tenantId) {
-    logicProfiles = [...logicProfiles.filter(l => l.tenantId !== tenantId), ...req.body.map((l: any) => ({ ...l, tenantId }))];
+  if (tenantId && tenantId !== 'all') {
+    logicProfiles = [...logicProfiles.filter(l => l.tenantId !== tenantId), ...req.body];
   } else {
     logicProfiles = req.body;
   }
@@ -218,8 +218,8 @@ router.post('/smtp', (req, res) => {
 router.get('/server-profiles', (req, res) => res.json(filterByTenant(req, serverProfiles)));
 router.post('/server-profiles', (req, res) => {
   const tenantId = req.query.tenantId as string;
-  if (tenantId) {
-    serverProfiles = [...serverProfiles.filter(s => s.tenantId !== tenantId), ...req.body.map((s: any) => ({ ...s, tenantId }))];
+  if (tenantId && tenantId !== 'all') {
+    serverProfiles = [...serverProfiles.filter(s => s.tenantId !== tenantId), ...req.body];
   } else {
     serverProfiles = req.body;
   }
@@ -231,8 +231,8 @@ router.post('/server-profiles', (req, res) => {
 router.get('/users', (req, res) => res.json(filterByTenant(req, users)));
 router.post('/users', (req, res) => {
   const tenantId = req.query.tenantId as string;
-  if (tenantId) {
-    users = [...users.filter(u => u.tenantId !== tenantId), ...req.body.map((u: any) => ({ ...u, tenantId }))];
+  if (tenantId && tenantId !== 'all') {
+    users = [...users.filter(u => u.tenantId !== tenantId), ...req.body];
   } else {
     users = req.body;
   }

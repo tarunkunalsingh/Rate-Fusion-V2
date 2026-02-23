@@ -147,7 +147,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, setUsers, smtpCo
         authType: formData.authType as 'SSO' | 'BASIC',
         role: formData.role as 'ADMIN' | 'USER',
         password: formData.password,
-        tenantId: currentUser.tenantId // Inherit tenantId from creator
+        tenantId: formData.tenantId || currentUser.tenantId // Use selected tenantId or inherit from creator
       };
       // Use functional update to ensure we have the latest state
       setUsers(prev => [newUser, ...prev]);
