@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
 import { 
   Project, 
   User, 
@@ -26,13 +28,38 @@ import proxyHandler from './proxy.js';
 
 const router = express.Router();
 
-// --- IN-MEMORY STORAGE ---
-let projects: Project[] = [];
-let masterData: MasterDataCategory[] = [
+// --- PERSISTENCE HELPERS ---
+const DB_FILE = path.resolve('db.json');
+
+const loadDB = () => {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const data = fs.readFileSync(DB_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('Failed to load DB:', e);
+  }
+  return null;
+};
+
+const saveDB = (data: any) => {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('Failed to save DB:', e);
+  }
+};
+
+// --- IN-MEMORY STORAGE (INITIALIZED FROM DB) ---
+const initialDB = loadDB() || {};
+
+let projects: Project[] = initialDB.projects || [];
+let masterData: MasterDataCategory[] = initialDB.masterData || [
   { id: 'md_countries', name: 'Countries (ISO2)', type: 'LIST', records: [...RAW_COUNTRIES].sort() },
   { id: 'md_unlocodes', name: 'UNLOCODES', type: 'LIST', records: [...RAW_UNLOCODES].sort() }
 ];
-let logicProfiles: LogicProfile[] = [
+let logicProfiles: LogicProfile[] = initialDB.logicProfiles || [
   { 
     id: 'default', 
     name: 'Standard OTM Logic', 
@@ -44,13 +71,28 @@ let logicProfiles: LogicProfile[] = [
     transmissionSequence: Object.keys(DEFAULT_LOGIC_CONFIG) 
   }
 ];
-let branding: BrandingConfig = DEFAULT_BRANDING;
-let smtpConfigs: SMTPConfig[] = [];
-let serverProfiles: ServerProfile[] = [];
-let users: User[] = [];
-let idpConfigs: IDPConfig[] = [];
-let transmissionLogs: TransmissionLogEntry[] = [];
-let tenants: Tenant[] = [];
+let branding: BrandingConfig = initialDB.branding || DEFAULT_BRANDING;
+let smtpConfigs: SMTPConfig[] = initialDB.smtpConfigs || [];
+let serverProfiles: ServerProfile[] = initialDB.serverProfiles || [];
+let users: User[] = initialDB.users || [];
+let idpConfigs: IDPConfig[] = initialDB.idpConfigs || [];
+let transmissionLogs: TransmissionLogEntry[] = initialDB.transmissionLogs || [];
+let tenants: Tenant[] = initialDB.tenants || [];
+
+const syncToDisk = () => {
+  saveDB({
+    projects,
+    masterData,
+    logicProfiles,
+    branding,
+    smtpConfigs,
+    serverProfiles,
+    users,
+    idpConfigs,
+    transmissionLogs,
+    tenants
+  });
+};
 
 // Helper to filter by tenant
 const filterByTenant = (req: express.Request, data: any[]) => {
@@ -63,6 +105,7 @@ const filterByTenant = (req: express.Request, data: any[]) => {
 router.get('/tenants', (req, res) => res.json(tenants));
 router.post('/tenants', (req, res) => {
   tenants = req.body;
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -87,6 +130,7 @@ router.post('/tenants/provision', (req, res) => {
     tenantId: tenant.id
   };
   logicProfiles.push(tenantLogicProfile);
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -99,6 +143,7 @@ router.post('/projects', (req, res) => {
   } else {
     projects = req.body;
   }
+  syncToDisk();
   res.json({ success: true });
 });
 router.put('/projects/:id', (req, res) => {
@@ -108,6 +153,7 @@ router.put('/projects/:id', (req, res) => {
     } else {
         projects.push(req.body);
     }
+    syncToDisk();
     res.json({ success: true });
 });
 
@@ -120,6 +166,7 @@ router.post('/master-data', (req, res) => {
   } else {
     masterData = req.body;
   }
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -132,6 +179,7 @@ router.post('/logic-profiles', (req, res) => {
   } else {
     logicProfiles = req.body;
   }
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -139,6 +187,7 @@ router.post('/logic-profiles', (req, res) => {
 router.get('/branding', (req, res) => res.json(branding));
 router.post('/branding', (req, res) => {
   branding = req.body;
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -161,6 +210,7 @@ router.post('/smtp', (req, res) => {
   if (tenantId) {
     smtpConfigs = [...smtpConfigs.filter(s => s.tenantId !== tenantId), { ...req.body, tenantId }];
   }
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -173,6 +223,7 @@ router.post('/server-profiles', (req, res) => {
   } else {
     serverProfiles = req.body;
   }
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -185,6 +236,7 @@ router.post('/users', (req, res) => {
   } else {
     users = req.body;
   }
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -201,6 +253,7 @@ router.post('/idp-config', (req, res) => {
   if (tenantId) {
     idpConfigs = [...idpConfigs.filter(i => i.tenantId !== tenantId), { ...req.body, tenantId }];
   }
+  syncToDisk();
   res.json({ success: true });
 });
 
@@ -209,6 +262,7 @@ router.get('/logs', (req, res) => res.json(filterByTenant(req, transmissionLogs)
 router.post('/logs', (req, res) => {
   const newLog = req.body;
   transmissionLogs = [newLog, ...transmissionLogs];
+  syncToDisk();
   res.json({ success: true });
 });
 
